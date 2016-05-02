@@ -104,6 +104,7 @@ resource "aws_launch_configuration" "demo" {
   instance_type = "t2.micro"
   security_groups = ["${aws_security_group.webapp.id}"]
   associate_public_ip_address = true
+  iam_instance_profile = "${aws_iam_instance_profile.ecs.id}"
 }
 
 # Autoscaling group - defines how many servers to spin up for our launch config
@@ -123,6 +124,87 @@ resource "aws_autoscaling_group" "demo" {
 #
 resource "aws_ecs_cluster" "demo" {
   name = "demo"
+}
+
+# ECS container instance  IAM role - identifies ecs agents as belonging to us
+# and allows them to tell our ELB that they can serve web stuff
+resource "aws_iam_role" "ecs" {
+  name = "ecsRole"
+  assume_role_policy = <<EOF
+{
+  "Version": "2008-10-17",
+  "Statement": [
+    {
+      "Action": "sts:AssumeRole",
+      "Principal": { "Service": ["ecs.amazonaws.com", "ec2.amazonaws.com"] },
+      "Effect": "Allow"
+    }
+  ]
+}
+EOF
+}
+resource "aws_iam_role_policy" "ecs" {
+  name = "ecsPolicy"
+  role = "${aws_iam_role.ecs.id}"
+  policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ecs:CreateCluster",
+        "ecs:DeregisterContainerInstance",
+        "ecs:DiscoverPollEndpoint",
+        "ecs:Poll",
+        "ecs:RegisterContainerInstance",
+        "ecs:StartTelemetrySession",
+        "ecs:Submit*",
+        "ecs:StartTask"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "elasticloadbalancing:Describe*",
+        "elasticloadbalancing:DeregisterInstancesFromLoadBalancer",
+        "elasticloadbalancing:RegisterInstancesWithLoadBalancer",
+        "ec2:Describe*",
+        "ec2:AuthorizeSecurityGroupIngress"
+      ],
+      "Resource": [
+        "*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::${s3_bucket_name}"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:PutObject",
+        "s3:GetObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": [
+        "arn:aws:s3:::${s3_bucket_name}/*"
+      ]
+    }
+  ]
+}
+EOF
+}
+resource "aws_iam_instance_profile" "ecs" {
+  name = "ecsProfile"
+  path = "/"
+  roles = ["${aws_iam_role.ecs.id}"]
 }
 
 # Task definition - a dummy task just to get our service up
@@ -146,7 +228,7 @@ resource "aws_ecs_service" "webapp" {
   desired_count = 1
 
   # The IAM that lets us notify our ELB that we're up
-  iam_role = "ecsServiceRole"
+  iam_role = "${aws_iam_role.ecs.arn}"
                                                                                 
   # Hook up to our load balancer.
   load_balancer {                                                      
