@@ -129,7 +129,8 @@ resource "aws_ecs_cluster" "demo" {
 # ECS container instance  IAM role - identifies ecs agents as belonging to us
 # and allows them to tell our ELB that they can serve web stuff
 resource "aws_iam_role" "ecs" {
-  name = "ecsRole"
+  # This role has to have this name - it's Amazon's magic string
+  name = "ecsServiceRole"
   assume_role_policy = <<EOF
 {
   "Version": "2008-10-17",
@@ -154,6 +155,7 @@ resource "aws_iam_role_policy" "ecs" {
       "Effect": "Allow",
       "Action": [
         "ecs:CreateCluster",
+        "ecs:ListClusters",
         "ecs:DeregisterContainerInstance",
         "ecs:DiscoverPollEndpoint",
         "ecs:Poll",
@@ -175,26 +177,6 @@ resource "aws_iam_role_policy" "ecs" {
       ],
       "Resource": [
         "*"
-      ]
-    },
-    {
-      "Effect": "Allow",
-      "Action": [
-        "s3:ListBucket"
-      ],
-      "Resource": [
-        "arn:aws:s3:::${s3_bucket_name}"
-      ]
-    },
-    {
-      "Effect": "Allow",
-      "Action": [
-        "s3:PutObject",
-        "s3:GetObject",
-        "s3:DeleteObject"
-      ],
-      "Resource": [
-        "arn:aws:s3:::${s3_bucket_name}/*"
       ]
     }
   ]
@@ -228,7 +210,7 @@ resource "aws_ecs_service" "webapp" {
   desired_count = 1
 
   # The IAM that lets us notify our ELB that we're up
-  iam_role = "${aws_iam_role.ecs.arn}"
+  iam_role = "${aws_iam_role.ecs.name}"
                                                                                 
   # Hook up to our load balancer.
   load_balancer {                                                      
