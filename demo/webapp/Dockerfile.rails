@@ -1,0 +1,22 @@
+FROM ruby:2.3.1
+
+RUN apt-get update && \
+  apt-get install -y --no-install-recommends \
+    postgresql-client \
+    nodejs && \
+  rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+ADD Gemfile /app/Gemfile
+ADD Gemfile.lock /app/Gemfile.lock
+
+RUN bundle install
+
+ADD . /app
+
+RUN rake assets:precompile
+
+EXPOSE 3000
+
+CMD bin/rails server

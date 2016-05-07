@@ -6,3 +6,6 @@ local: &local
 
 development: *local
 test: *local
+
+production:
+  url: <%= ENV['REDIS_URL'] %>
