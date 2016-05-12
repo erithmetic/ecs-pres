@@ -9,7 +9,7 @@ nginx:
   mem_limit: 52430000
 
 rails:
-  image: dkastner/ecs-demo-webapp-rails:latest
+  image: dkastner/ecs-demo-webapp-rails:3
   #image: ecs-demo-webapp-rails:latest
   links:
     - "redis:redis"
@@ -22,7 +22,7 @@ rails:
   mem_limit: 157300000
 
 cable:
-  image: dkastner/ecs-demo-webapp-cable:latest
+  image: dkastner/ecs-demo-webapp-cable:1
   #image: ecs-demo-webapp-cable:latest
   links:
     - "redis:redis"

@@ -5,6 +5,7 @@ set -euo pipefail
 export AWS_ACCESS_KEY_ID=$DEMO_ECS_ACCESS_KEY
 export AWS_SECRET_ACCESS_KEY=$DEMO_ECS_SECRET_KEY
 
+# Tell ecs-cli how to connect to AWS
 echo 'ecs-cli configure \
   --region us-east-1 \
   --access-key $DEMO_ECS_ACCESS_KEY \
@@ -33,7 +34,7 @@ aws ecs update-service \
 # Bring up a database
 
 # Populate the database
-ecs-cli compose -f demo/rails.yml -p rails run rails "rake db:reset"
+ecs-cli compose -f demo/rails.yml -p rails run rails "/app/initdb.sh"
 
 # Run 2 webapp services
 ecs-cli compose -f demo/webapp.yml -p webapp service scale 2

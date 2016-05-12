@@ -1,5 +1,5 @@
 rails:
-  image: dkastner/ecs-demo-webapp-rails:latest
+  image: dkastner/ecs-demo-webapp-rails:3
   #image: ecs-demo-webapp-rails:latest
   environment:
     DATABASE_URL: postgres://demo:demodemo@blue.cn3qcfvaqczu.us-east-1.rds.amazonaws.com:5432
