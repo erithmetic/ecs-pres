@@ -80,7 +80,8 @@ resource "aws_elb" "webapp" {
   health_check {
     healthy_threshold = 2
     unhealthy_threshold = 2
-    target = "HTTP:80/"
+    # Health check path needs to respond with 200
+    target = "HTTP:80/session/new"
     interval = 10
     timeout = 3
   }
