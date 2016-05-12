@@ -122,7 +122,7 @@ resource "aws_launch_configuration" "demo" {
   # This image id is for the latest Amazon Linux that auto-starts ecs-agent
   # amzn-ami-2016.03.a-amazon-ecs-optimized
   image_id = "ami-67a3a90d"
-  instance_type = "t2.micro"
+  instance_type = "m3.medium"
   security_groups = ["${aws_security_group.webapp.id}"]
   associate_public_ip_address = true
   iam_instance_profile = "${aws_iam_instance_profile.ecs.name}"

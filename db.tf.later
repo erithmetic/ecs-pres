@@ -3,7 +3,7 @@ resource "aws_db_instance" "demo" {
   allocated_storage      = 5
   engine                 = "postgres"
   engine_version         = "9.4.7"
-  instance_class         = "db.t1.micro"
+  instance_class         = "db.m3.medium"
   name                   = "demo"
   username               = "demo"
   password               = "demodemo"
