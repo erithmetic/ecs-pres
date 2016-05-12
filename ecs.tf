@@ -9,7 +9,28 @@ provider "aws" {
 # Virtual private cloud (VPC) that will host our ECS instances
 # 
 resource "aws_vpc" "ecs" {
-  cidr_block = "10.0.0.0/16"
+  cidr_block = "10.0.0.0/24"
+}
+resource "aws_subnet" "public" {
+  vpc_id = "${aws_vpc.ecs.id}"
+  cidr_block = "10.0.0.0/24"
+  map_public_ip_on_launch = true
+}
+resource "aws_internet_gateway" "public" {
+  vpc_id = "${aws_vpc.ecs.id}"
+}
+# This lets us SSH into our instances
+resource "aws_route_table" "public" {
+  vpc_id = "${aws_vpc.ecs.id}"
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = "${aws_internet_gateway.public.id}"
+  }
+}
+resource "aws_route_table_association" "public" {
+  subnet_id = "${aws_subnet.public.id}"
+  route_table_id = "${aws_route_table.public.id}"
 }
 
 # Security group to allow public HTTP into our VPC
@@ -25,21 +46,19 @@ resource "aws_security_group" "webapp" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  ingress {
+    from_port = 22
+    to_port   = 22
+    protocol  = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
   egress {
     from_port = 0
     to_port = 0
     protocol = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-}
-
-resource "aws_subnet" "public" {
-  vpc_id = "${aws_vpc.ecs.id}"
-  cidr_block = "10.0.1.0/24"
-}
-
-resource "aws_internet_gateway" "public" {
-  vpc_id = "${aws_vpc.ecs.id}"
 }
 
 # Load balancer (ELB) that routes public HTTP requests to our ECS webapp service
@@ -50,6 +69,7 @@ resource "aws_elb" "webapp" {
   security_groups = ["${aws_security_group.webapp.id}"]
   subnets = ["${aws_subnet.public.id}"]
 
+  # Forward public port 80 to the instance's port 80
   listener {
     instance_port = 80
     instance_protocol = "http"
@@ -68,6 +88,7 @@ resource "aws_elb" "webapp" {
 
 # IP and Route53 domain used for web load balancing - mapped to our ELB above
 #
+# Public IP for our cluster (Elastic IP)
 resource "aws_eip" "awesomedemo" {
   vpc = true
 }
@@ -104,7 +125,13 @@ resource "aws_launch_configuration" "demo" {
   instance_type = "t2.micro"
   security_groups = ["${aws_security_group.webapp.id}"]
   associate_public_ip_address = true
-  iam_instance_profile = "${aws_iam_instance_profile.ecs.id}"
+  iam_instance_profile = "${aws_iam_instance_profile.ecs.name}"
+
+  # Optional keypair for sshing into instances
+  key_name = "ecs"
+
+  # Tell this instance which cluster to join
+  user_data = "#!/bin/bash\necho ECS_CLUSTER=demo >> /etc/ecs/ecs.config"
 }
 
 # Autoscaling group - defines how many servers to spin up for our launch config
@@ -112,24 +139,32 @@ resource "aws_launch_configuration" "demo" {
 resource "aws_autoscaling_group" "demo" {
   name = "default"
   launch_configuration = "${aws_launch_configuration.demo.name}"
-  min_size = 1
+  min_size = 2
   max_size = 3
-  desired_capacity = 1
+  desired_capacity = 2
 
   vpc_zone_identifier = ["${aws_subnet.public.id}"]
   health_check_type = "EC2"
 }
 
-# Cluster 
-#
-resource "aws_ecs_cluster" "demo" {
-  name = "demo"
-}
-
-# ECS container instance  IAM role - identifies ecs agents as belonging to us
+# ECS container instance IAM role - identifies ecs agents as belonging to us
 # and allows them to tell our ELB that they can serve web stuff
-resource "aws_iam_role" "ecs" {
-  # This role has to have this name - it's Amazon's magic string
+resource "aws_iam_role" "ecs_instance_role" {
+  name = "ecsInstanceRole"
+  assume_role_policy = <<EOF
+{
+  "Version": "2008-10-17",
+  "Statement": [
+    {
+      "Action": "sts:AssumeRole",
+      "Principal": { "Service": ["ecs.amazonaws.com", "ec2.amazonaws.com"] },
+      "Effect": "Allow"
+    }
+  ]
+}
+EOF
+}
+resource "aws_iam_role" "ecs_service_role" {
   name = "ecsServiceRole"
   assume_role_policy = <<EOF
 {
@@ -144,9 +179,9 @@ resource "aws_iam_role" "ecs" {
 }
 EOF
 }
-resource "aws_iam_role_policy" "ecs" {
-  name = "ecsPolicy"
-  role = "${aws_iam_role.ecs.id}"
+resource "aws_iam_role_policy" "ecs_instance_role_policy" {
+  name = "ecsInstanceRolePolicy"
+  role = "${aws_iam_role.ecs_instance_role.id}"
   policy = <<EOF
 {
   "Version": "2012-10-17",
@@ -155,17 +190,32 @@ resource "aws_iam_role_policy" "ecs" {
       "Effect": "Allow",
       "Action": [
         "ecs:CreateCluster",
-        "ecs:ListClusters",
         "ecs:DeregisterContainerInstance",
         "ecs:DiscoverPollEndpoint",
         "ecs:Poll",
         "ecs:RegisterContainerInstance",
         "ecs:StartTelemetrySession",
         "ecs:Submit*",
-        "ecs:StartTask"
+        "ecr:GetAuthorizationToken",
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:BatchGetImage",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents"
       ],
       "Resource": "*"
-    },
+    }
+  ]
+}
+EOF
+}
+resource "aws_iam_role_policy" "ecs_service_role_policy" {
+  name = "ecsServiceRolePolicy"
+  role = "${aws_iam_role.ecs_service_role.id}"
+  policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
     {
       "Effect": "Allow",
       "Action": [
@@ -184,18 +234,27 @@ resource "aws_iam_role_policy" "ecs" {
 EOF
 }
 resource "aws_iam_instance_profile" "ecs" {
-  name = "ecsProfile"
+  name = "ecs-instance-profile"
   path = "/"
-  roles = ["${aws_iam_role.ecs.id}"]
+  roles = ["${aws_iam_role.ecs_instance_role.name}"]
 }
+
+# Cluster 
+#
+resource "aws_ecs_cluster" "demo" {
+  name = "demo"
+}
+
+## The following task definition and service are placeholders
 
 # Task definition - a dummy task just to get our service up
 # Normally, ecs-cli creates these for us, but we need a default task to get
 # these configs rolling and assign an ELB to our webapp service
 #
 resource "aws_ecs_task_definition" "terraform_placeholder" {
-  # family is basically just the "name"
-  family = "terraform-placeholder"
+  # Family is basically just the "name," which needs to match the format used by
+  # `ecs-cli compose`
+  family = "ecscompose-webapp"
   container_definitions = "${file("${path.module}/terraform_placeholder.json")}"
 }
 
@@ -210,7 +269,7 @@ resource "aws_ecs_service" "webapp" {
   desired_count = 1
 
   # The IAM that lets us notify our ELB that we're up
-  iam_role = "${aws_iam_role.ecs.name}"
+  iam_role = "${aws_iam_role.ecs_service_role.name}"
                                                                                 
   # Hook up to our load balancer.
   load_balancer {                                                      

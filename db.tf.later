@@ -1,0 +1,21 @@
+resource "aws_db_instance" "demo" {
+  identifier             = "blue"
+  allocated_storage      = 5
+  engine                 = "postgres"
+  engine_version         = "9.4.7"
+  instance_class         = "db.t1.micro"
+  name                   = "demo"
+  username               = "demo"
+  password               = "demodemo"
+  security_group_names   = ["${aws_db_security_group.default.name}"]
+}
+
+# Don't do this in real life, instead use VPCs/security groups
+resource "aws_db_security_group" "default" {
+  name = "rds_sg"
+  description = "RDS default security group"
+
+  ingress {
+    cidr = "0.0.0.0/0"
+  }
+}

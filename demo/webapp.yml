@@ -6,39 +6,33 @@ nginx:
     - "cable:cable"
   ports:
     - "80:80"
-  mem_limit: 50m
+  mem_limit: 52430000
 
 rails:
   image: dkastner/ecs-demo-webapp-rails:latest
   #image: ecs-demo-webapp-rails:latest
   links:
-    - "db:db"
     - "redis:redis"
   environment:
-    DATABASE_URL: postgres://postgres@db:5432/ecs_demo
+    DATABASE_URL: postgres://demo:demodemo@blue.cn3qcfvaqczu.us-east-1.rds.amazonaws.com:5432
     DISABLE_DATABASE_ENVIRONMENT_CHECK: 1
     RAILS_ENV: production
     REDIS_URL: redis://redis:6378
     SECRET_KEY_BASE: omgwhatev
-  mem_limit: 150m
+  mem_limit: 157300000
 
 cable:
   image: dkastner/ecs-demo-webapp-cable:latest
   #image: ecs-demo-webapp-cable:latest
   links:
-    - "db:db"
     - "redis:redis"
   environment:
-    DATABASE_URL: postgres://postgres@db:5432/ecs_demo
+    DATABASE_URL: postgres://demo:demodemo@blue.cn3qcfvaqczu.us-east-1.rds.amazonaws.com:5432
     RAILS_ENV: production
     REDIS_URL: redis://redis:6379
     SECRET_KEY_BASE: omgwhatev
-  mem_limit: 64m
-
-db:
-  image: postgres:9.4
-  mem_limit: 64m
+  mem_limit: 67110000
 
 redis:
   image: redis
-  mem_limit: 32m
+  mem_limit: 33550000

@@ -1,0 +1,11 @@
+rails:
+  image: dkastner/ecs-demo-webapp-rails:latest
+  #image: ecs-demo-webapp-rails:latest
+  environment:
+    DATABASE_URL: postgres://demo:demodemo@blue.cn3qcfvaqczu.us-east-1.rds.amazonaws.com:5432
+    DISABLE_DATABASE_ENVIRONMENT_CHECK: 1
+    RAILS_ENV: production
+    REDIS_URL: redis://redis:6378
+    SECRET_KEY_BASE: omgwhatev
+  mem_limit: 157300000
+

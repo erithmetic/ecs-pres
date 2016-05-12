@@ -1,7 +1,7 @@
 [
   {
     "name": "nginx",
-    "image": "hello-world",
+    "image": "kitematic/hello-world-nginx",
     "cpu": 10,
     "memory": 100,
     "essential": true,
