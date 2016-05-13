@@ -81,7 +81,10 @@ resource "aws_elb" "webapp" {
     healthy_threshold = 2
     unhealthy_threshold = 2
     # Health check path needs to respond with 200
-    target = "HTTP:80/session/new"
+    target = "HTTP:80/"
+    # When using webapp.yml, health check needs to point to login page cuz /
+    # returns HTTP 302
+    # target = "HTTP:80/session/new"
     interval = 10
     timeout = 3
   }
